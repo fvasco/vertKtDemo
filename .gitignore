@@ -12,4 +12,4 @@ hs_err_pid*
 
 # Gradle files
 build
-gradle
+gradle*

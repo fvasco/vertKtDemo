@@ -1,19 +1,16 @@
 import io.vertx.core.AbstractVerticle
-import io.vertx.core.AsyncResult
-import io.vertx.core.Handler
 import io.vertx.core.eventbus.Message
-import kotlin.coroutines.experimental.Continuation
-import kotlin.coroutines.experimental.suspendCoroutine
 
 class MainVerticle : AbstractVerticle() {
 
     override fun start() {
         val eventBus = vertx.eventBus()
+        eventBus.registerDefaultCodec(Unit::class.java, UnitMessageCodec)
 
         // register actor
-        eventBus.launchConsumer<String>("messageBus") { message ->
+        eventBus.launchConsumer<String, String>("messageBus") { message ->
             println("Received ${message.body()}, reply ok")
-            message.reply("ok")
+            return@launchConsumer "ok"
         }
 
         // play a demo code
@@ -31,21 +28,9 @@ class MainVerticle : AbstractVerticle() {
                 println("Register ${verticle.javaClass}: $result")
             }
             println("Start demo")
-            eventBus.send(WorkStep.STEP1.busName, "work description 1")
-            eventBus.send(WorkStep.STEP1.busName, "work description 2")
-            eventBus.send(WorkStep.STEP1.busName, "work description 3")
+            eventBus.send<String>(WorkStep.STEP1.busName, "work description 1", { println("Result 1: ${it.result().body()}") })
+            eventBus.send<String>(WorkStep.STEP1.busName, "work description 2", { println("Result 2: ${it.result().body()}") })
+            eventBus.send<String>(WorkStep.STEP1.busName, "work description 3", { println("Result 3: ${it.result().body()}") })
         }
     }
 }
-
-/**
- * Await for [AsyncResult] and return result
- */
-suspend fun <T> handleResult(block: (handler: Handler<AsyncResult<T>>) -> Unit): T =
-        suspendCoroutine <T> { cont: Continuation<T> ->
-            // handler returns result or exception
-            val handler = Handler<AsyncResult<T>> {
-                if (it.succeeded()) cont.resume(it.result()) else cont.resumeWithException(it.cause())
-            }
-            block(handler)
-        }

@@ -1,5 +1,7 @@
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.eventbus.Message
 
 class Verticle2 : AbstractVerticle() {
@@ -8,15 +10,27 @@ class Verticle2 : AbstractVerticle() {
         val eventBus = vertx.eventBus()
         eventBus
                 .consumer<String>(WorkStep.STEP2.busName)
-                .handler { this.handleWorkRequest(it) }
+                .handler(WorkRequestHandler(vertx))
     }
 
-    private fun handleWorkRequest(requestMessage: Message<String>) {
-        doWork(WorkStep.STEP2, requestMessage.body(), vertx, Handler<String> { this.handleWorkResult(it) })
+    private class WorkRequestHandler(private val vertx: Vertx) : Handler<Message<String>> {
+        override fun handle(requestMessage: Message<String>) {
+            doWork(WorkStep.STEP2, requestMessage.body(), vertx, WorkResultHandler(requestMessage, vertx))
+        }
+
     }
 
-    private fun handleWorkResult(result: String) {
-        val eventBus = vertx.eventBus()
-        eventBus.publish(WorkStep.STEP3.busName, result)
+    private class WorkResultHandler(private val requestMessage: Message<String>, private val vertx: Vertx) : Handler<String> {
+        override fun handle(result: String) {
+            val eventBus = vertx.eventBus()
+            eventBus.send(WorkStep.STEP3.busName, result, ResultHandler(requestMessage, vertx))
+        }
+    }
+
+    private class ResultHandler(private val requestMessage: Message<String>, private val vertx: Vertx) : Handler<AsyncResult<Message<String>>> {
+        override fun handle(event: AsyncResult<Message<String>>) {
+            requestMessage.reply(event.result().body())
+        }
+
     }
 }

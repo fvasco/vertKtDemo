@@ -1,4 +1,5 @@
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.eventbus.Message
@@ -14,9 +15,14 @@ class Verticle3 : AbstractVerticle() {
     private fun handleWorkRequest(requestMessage: Message<String>) {
         val eventBus = vertx.eventBus()
         launchFuture {
-            val jobDescription = requestMessage.body()
-            val workMessage = handle<String> { doWork(WorkStep.STEP3, jobDescription, vertx, it) }
-            eventBus.send(WorkStep.STEP4.busName, workMessage)
+            try {
+                val jobDescription = requestMessage.body()
+                val workMessage = handle<String> { doWork(WorkStep.STEP3, jobDescription, vertx, it) }
+                val result = handleResult<Message<String>> { eventBus.send(WorkStep.STEP4.busName, workMessage, it) }
+                requestMessage.reply(result.body())
+            } catch(e: Exception) {
+                requestMessage.fail(0, e.message)
+            }
         }
     }
 }
@@ -51,3 +57,14 @@ suspend fun <T> handle(block: (handler: Handler<T>) -> Unit): T =
             block(handler)
         }
 
+/**
+ * Await for [AsyncResult] and return result
+ */
+suspend fun <T> handleResult(block: (handler: Handler<AsyncResult<T>>) -> Unit): T =
+        suspendCoroutine <T> { cont: Continuation<T> ->
+            // handler returns result or exception
+            val handler = Handler<AsyncResult<T>> {
+                if (it.succeeded()) cont.resume(it.result()) else cont.resumeWithException(it.cause())
+            }
+            block(handler)
+        }

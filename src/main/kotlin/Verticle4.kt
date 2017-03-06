@@ -24,16 +24,19 @@ class Verticle4 : AbstractVerticle() {
 }
 
 suspend fun <T> ReadStream<T>.forEach(block: suspend (T) -> Unit) {
-    suspendCoroutine <Unit> { cont: Continuation<Unit> ->
+    suspendCoroutine { cont: Continuation<Unit> ->
         handler { handler ->
             pause()
-            launchFuture {
+            val future = launchFuture {
                 block(handler)
-            }.setHandler { asyncResult ->
+            }
+            future.setHandler { asyncResult ->
                 resume()
                 if (!asyncResult.succeeded()) {
                     // remove handler
                     handler(null)
+                    exceptionHandler(null)
+                    endHandler(null)
                     cont.resumeWithException(asyncResult.cause())
                 }
             }

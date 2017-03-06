@@ -13,12 +13,11 @@ class Verticle3 : AbstractVerticle() {
     }
 
     private fun handleWorkRequest(requestMessage: Message<String>) {
-        val eventBus = vertx.eventBus()
         launchFuture {
             try {
                 val jobDescription = requestMessage.body()
                 val workMessage = handle<String> { doWork(WorkStep.STEP3, jobDescription, vertx, it) }
-                val result = handleResult<Message<String>> { eventBus.send(WorkStep.STEP4.busName, workMessage, it) }
+                val result = handleResult<Message<String>> { vertx.eventBus().send(WorkStep.STEP4.busName, workMessage, it) }
                 requestMessage.reply(result.body())
             } catch(e: Exception) {
                 requestMessage.fail(0, e.message)
@@ -30,12 +29,12 @@ class Verticle3 : AbstractVerticle() {
 /**
  * Vert.x Future adapter for Kotlin coroutine continuation
  */
-private class VertxFutureCoroutine<T>(override val context: CoroutineContext, private val delegate: Future<T> = Future.future()) :
-        Future<T> by delegate, Continuation<T> {
+private class VertxFutureCoroutine<T>(override val context: CoroutineContext, private val future: Future<T> = Future.future()) :
+        Future<T> by future, Continuation<T> {
 
-    override fun resume(value: T) = delegate.complete(value)
+    override fun resume(value: T) = future.complete(value)
 
-    override fun resumeWithException(exception: Throwable) = delegate.fail(exception)
+    override fun resumeWithException(exception: Throwable) = future.fail(exception)
 }
 
 /**
@@ -51,7 +50,7 @@ fun <T> launchFuture(context: CoroutineContext = EmptyCoroutineContext,
  * Await for resume and return result
  */
 suspend fun <T> handle(block: (handler: Handler<T>) -> Unit): T =
-        suspendCoroutine <T> { cont: Continuation<T> ->
+        suspendCoroutine { cont: Continuation<T> ->
             // handler calls `resume`
             val handler = Handler<T> { cont.resume(it) }
             block(handler)
@@ -61,10 +60,13 @@ suspend fun <T> handle(block: (handler: Handler<T>) -> Unit): T =
  * Await for [AsyncResult] and return result
  */
 suspend fun <T> handleResult(block: (handler: Handler<AsyncResult<T>>) -> Unit): T =
-        suspendCoroutine <T> { cont: Continuation<T> ->
+        suspendCoroutine { cont: Continuation<T> ->
             // handler returns result or exception
             val handler = Handler<AsyncResult<T>> {
-                if (it.succeeded()) cont.resume(it.result()) else cont.resumeWithException(it.cause())
+                if (it.succeeded())
+                    cont.resume(it.result())
+                else
+                    cont.resumeWithException(it.cause())
             }
             block(handler)
         }

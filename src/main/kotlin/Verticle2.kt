@@ -12,21 +12,23 @@ class Verticle2 : AbstractVerticle() {
                 .handler(WorkRequestHandler(vertx))
     }
 
-    private class WorkRequestHandler(private val vertx: Vertx) : Handler<Message<String>> {
+    private class WorkRequestHandler(val vertx: Vertx) : Handler<Message<String>> {
         override fun handle(requestMessage: Message<String>) {
-            doWork(WorkStep.STEP2, requestMessage.body(), vertx, WorkResultHandler(requestMessage, vertx))
+            doWork(WorkStep.STEP2, requestMessage.body(), vertx, WorkResultHandler(vertx, requestMessage))
         }
     }
 
-    private class WorkResultHandler(private val requestMessage: Message<String>, private val vertx: Vertx) : Handler<String> {
+    private class WorkResultHandler(val vertx: Vertx,
+                                    val requestMessage: Message<String>) : Handler<String> {
         override fun handle(result: String) {
-            vertx.eventBus().send(WorkStep.STEP3.busName, result, ResultHandler(requestMessage))
+            vertx.eventBus().send(WorkStep.STEP3.busName, result, NextStepResultHandler(requestMessage))
         }
     }
 
-    private class ResultHandler(private val requestMessage: Message<String>) : Handler<AsyncResult<Message<String>>> {
+    private class NextStepResultHandler(val requestMessage: Message<String>) : Handler<AsyncResult<Message<String>>> {
         override fun handle(event: AsyncResult<Message<String>>) {
-            requestMessage.reply(event.result().body())
+            val result = event.result().body()
+            requestMessage.reply(result)
         }
     }
 }

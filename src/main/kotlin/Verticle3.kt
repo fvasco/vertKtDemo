@@ -1,3 +1,5 @@
+import WorkStep.STEP3
+import WorkStep.STEP4
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
@@ -8,16 +10,24 @@ import kotlin.coroutines.experimental.*
 class Verticle3 : AbstractVerticle() {
     override fun start() {
         val eventBus = vertx.eventBus()
-        val messageConsumer = eventBus.consumer<String>(WorkStep.STEP3.busName)
+        val messageConsumer = eventBus.consumer<String>(STEP3.busName)
         messageConsumer.handler(this::handleWorkRequest)
     }
 
     private fun handleWorkRequest(requestMessage: Message<String>) {
-        launchFuture {
+        val eventBus = vertx.eventBus()
+        launch {
             try {
                 val jobDescription = requestMessage.body()
-                val workMessage = handle<String> { doWork(WorkStep.STEP3, jobDescription, vertx, it) }
-                val result = handleResult<Message<String>> { vertx.eventBus().send(WorkStep.STEP4.busName, workMessage, it) }
+
+                val workMessage = handle<String> { handler ->
+                    doWork(STEP3, jobDescription, vertx, handler)
+                }
+
+                val result = handleResult<Message<String>> { handler ->
+                    eventBus.send(STEP4.busName, workMessage, handler)
+                }
+
                 requestMessage.reply(result.body())
             } catch(e: Exception) {
                 requestMessage.fail(0, e.message)
@@ -29,8 +39,9 @@ class Verticle3 : AbstractVerticle() {
 /**
  * Vert.x Future adapter for Kotlin coroutine continuation
  */
-private class VertxFutureCoroutine<T>(override val context: CoroutineContext, private val future: Future<T> = Future.future()) :
-        Future<T> by future, Continuation<T> {
+private class FutureContinuation<T>(override val context: CoroutineContext,
+                                    private val future: Future<T> = Future.future()) :
+        Continuation<T>, Future<T> by future {
 
     override fun resume(value: T) = future.complete(value)
 
@@ -40,16 +51,16 @@ private class VertxFutureCoroutine<T>(override val context: CoroutineContext, pr
 /**
  * Create a coroutine
  */
-fun <T> launchFuture(context: CoroutineContext = EmptyCoroutineContext,
-                     block: suspend () -> T): Future<T> =
-        VertxFutureCoroutine<T>(context).also { futureContinuation ->
+fun <T> launch(context: CoroutineContext = EmptyCoroutineContext,
+               block: suspend () -> T): Future<T> =
+        FutureContinuation<T>(context).also { futureContinuation ->
             block.startCoroutine(completion = futureContinuation)
         }
 
 /**
  * Await for resume and return result
  */
-suspend fun <T> handle(block: (handler: Handler<T>) -> Unit): T =
+suspend fun <T> handle(block: (Handler<T>) -> Unit): T =
         suspendCoroutine { cont: Continuation<T> ->
             // handler calls `resume`
             val handler = Handler<T> { cont.resume(it) }
@@ -59,14 +70,15 @@ suspend fun <T> handle(block: (handler: Handler<T>) -> Unit): T =
 /**
  * Await for [AsyncResult] and return result
  */
-suspend fun <T> handleResult(block: (handler: Handler<AsyncResult<T>>) -> Unit): T =
+suspend fun <T> handleResult(block: (Handler<AsyncResult<T>>) -> Unit): T =
         suspendCoroutine { cont: Continuation<T> ->
             // handler returns result or exception
-            val handler = Handler<AsyncResult<T>> {
-                if (it.succeeded())
-                    cont.resume(it.result())
+            val handler = Handler<AsyncResult<T>> { asyncResult ->
+                if (asyncResult.succeeded())
+                    cont.resume(asyncResult.result())
                 else
-                    cont.resumeWithException(it.cause())
+                    cont.resumeWithException(asyncResult.cause())
             }
             block(handler)
         }
+

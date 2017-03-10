@@ -8,7 +8,9 @@ class Verticle5 : AbstractVerticle() {
         val eventBus = vertx.eventBus()
         eventBus.launchConsumer<String, String>(WorkStep.STEP5.busName) { requestMessage ->
             val description = requestMessage.body()
-            val result: String = handle { doWork(WorkStep.STEP5, description, vertx, it) }
+            val result: String = handle { handler ->
+                doWork(WorkStep.STEP5, description, vertx, handler)
+            }
             return@launchConsumer result
         }
     }
@@ -17,9 +19,10 @@ class Verticle5 : AbstractVerticle() {
 /**
  * Run a message consumer for a given address
  */
-fun <Req, Res> EventBus.launchConsumer(address: String, block: suspend (Message<Req>) -> Res): MessageConsumer<Req> {
+fun <Req, Res> EventBus.launchConsumer(address: String,
+                                       block: suspend (Message<Req>) -> Res): MessageConsumer<Req> {
     val consumer = consumer<Req>(address)
-    launchFuture {
+    launch {
         consumer.forEach { message ->
             try {
                 val res = block(message)

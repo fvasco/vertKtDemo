@@ -7,9 +7,11 @@ enum class WorkStep {
 
 val WorkStep.busName get() = name
 
-fun doWork(workStep: WorkStep, description: String, vertx: Vertx, handler: Handler<String>) {
-    println("$workStep: $description")
+fun doWork(workStep: WorkStep,
+           description: String,
+           vertx: Vertx,
+           handler: Handler<String>) {
     vertx.setTimer(1000) {
-        handler.handle(description)
+        handler.handle("$description ($workStep ok)")
     }
 }

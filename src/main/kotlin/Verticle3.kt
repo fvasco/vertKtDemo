@@ -39,9 +39,8 @@ class Verticle3 : AbstractVerticle() {
 /**
  * Vert.x Future adapter for Kotlin coroutine continuation
  */
-private class FutureContinuation<T>(override val context: CoroutineContext,
-                                    private val future: Future<T> = Future.future()) :
-        Continuation<T>, Future<T> by future {
+private class FutureContinuation<T>(private val future: Future<T>,
+                                    override val context: CoroutineContext) : Continuation<T> {
 
     override fun resume(value: T) = future.complete(value)
 
@@ -51,14 +50,15 @@ private class FutureContinuation<T>(override val context: CoroutineContext,
 /**
  * Create a coroutine
  */
-fun <T> launch(context: CoroutineContext = EmptyCoroutineContext,
-               block: suspend () -> T): Future<T> =
-        FutureContinuation<T>(context).also { futureContinuation ->
-            block.startCoroutine(completion = futureContinuation)
-        }
+fun <T> launch(block: suspend () -> T): Future<T> {
+    val future = Future.future<T>()
+    val futureContinuation = FutureContinuation<T>(future, EmptyCoroutineContext)
+    block.startCoroutine(completion = futureContinuation)
+    return future
+}
 
 /**
- * Await for resume and return result
+ * Await for [Handler] and return result
  */
 suspend fun <T> handle(block: (Handler<T>) -> Unit): T =
         suspendCoroutine { cont: Continuation<T> ->
@@ -72,13 +72,13 @@ suspend fun <T> handle(block: (Handler<T>) -> Unit): T =
  */
 suspend fun <T> handleResult(block: (Handler<AsyncResult<T>>) -> Unit): T =
         suspendCoroutine { cont: Continuation<T> ->
-            // handler returns result or exception
-            val handler = Handler<AsyncResult<T>> { asyncResult ->
-                if (asyncResult.succeeded())
-                    cont.resume(asyncResult.result())
-                else
-                    cont.resumeWithException(asyncResult.cause())
-            }
+            val handler =
+                    Handler<AsyncResult<T>> { asyncResult ->
+                        if (asyncResult.succeeded())
+                            cont.resume(asyncResult.result())
+                        else
+                            cont.resumeWithException(asyncResult.cause())
+                    }
             block(handler)
         }
 

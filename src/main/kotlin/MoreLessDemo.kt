@@ -1,5 +1,6 @@
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.sync.Mutex
+import kotlinx.coroutines.experimental.sync.withMutex
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 
@@ -12,11 +13,8 @@ fun main(vararg args: String) = runBlocking {
     repeat(10) {
         jobs += async(CommonPool) {
             delay(ThreadLocalRandom.current().nextLong(1000), TimeUnit.MILLISECONDS)
-            mutex.lock()
-            try {
+            mutex.withMutex {
                 count++
-            } finally {
-                mutex.unlock()
             }
         }
     }
@@ -24,11 +22,8 @@ fun main(vararg args: String) = runBlocking {
     repeat(10) {
         jobs += async(CommonPool) {
             delay(ThreadLocalRandom.current().nextLong(1000), TimeUnit.MILLISECONDS)
-            mutex.lock()
-            try {
+            mutex.withMutex {
                 count--
-            } finally {
-                mutex.unlock()
             }
         }
     }

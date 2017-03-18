@@ -1,7 +1,7 @@
 import io.vertx.core.Vertx
 import kotlinx.coroutines.experimental.Job
+import kotlinx.coroutines.experimental.asCoroutineDispatcher
 import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.coroutines.experimental.toCoroutineDispatcher
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 
@@ -13,7 +13,7 @@ fun launchActor(step: WorkStep,
                 channel: Channel<Workflow>,
                 next: Channel<Workflow>,
                 vertx: Vertx): Job =
-        kotlinx.coroutines.experimental.launch(vertx.toCoroutineDispatcher()) {
+        kotlinx.coroutines.experimental.launch(vertx.asCoroutineDispatcher()) {
             for (workflow in channel) {
                 when (workflow) {
                     is WorkflowStep -> {
@@ -32,7 +32,7 @@ fun launchActor(step: WorkStep,
         }
 
 
-private fun Vertx.toCoroutineDispatcher() = VertxExecutor(this).toCoroutineDispatcher()
+private fun Vertx.asCoroutineDispatcher() = VertxExecutor(this).asCoroutineDispatcher()
 
 private class VertxExecutor(val vertx: Vertx) : Executor {
     override fun execute(command: Runnable) = vertx.runOnContext { command.run() }

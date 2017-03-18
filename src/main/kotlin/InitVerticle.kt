@@ -8,9 +8,7 @@ class InitVerticle : AbstractVerticle() {
         vertx.executeBlocking {
             launch {
                 while (true) {
-                    handle<Long> { handler ->
-                        vertx.setTimer(1000, handler)
-                    }
+                    handle<Long> { vertx.setTimer(1000, it) }
                     print("Enter request: ")
                     val line = System.console().readLine()
                     if (line.isBlank()) vertx.close()

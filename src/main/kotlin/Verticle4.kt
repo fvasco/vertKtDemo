@@ -12,12 +12,15 @@ class Verticle4 : AbstractVerticle() {
             messageConsumer.forEach { requestMessage ->
                 try {
                     val description = requestMessage.body()
+
                     val workMessage = handle <String> { handler ->
                         doWork(WorkStep.STEP4, description, vertx, handler)
                     }
+
                     val result = handleResult<Message<String>> { handler ->
                         eventBus.send(WorkStep.STEP5.busName, workMessage, handler)
                     }
+
                     requestMessage.reply(result.body())
                 } catch(e: Exception) {
                     requestMessage.fail(0, e.message)
@@ -28,24 +31,26 @@ class Verticle4 : AbstractVerticle() {
 }
 
 suspend fun <T> ReadStream<T>.forEach(block: suspend (T) -> Unit) {
+    val stream = this
     suspendCoroutine { cont: Continuation<Unit> ->
-        handler { handler ->
+
+        stream.endHandler { cont.resume(Unit) }
+        stream.exceptionHandler { cont.resumeWithException(it) }
+
+        stream.handler { handler ->
             pause()
-            val future = launch {
-                block(handler)
-            }
+            val future = launch { block(handler) }
             future.setHandler { asyncResult ->
                 resume()
+
                 if (!asyncResult.succeeded()) {
-                    // remove handler
-                    handler(null)
-                    exceptionHandler(null)
-                    endHandler(null)
+                    // on error remove handlers
+                    stream.handler(null)
+                    stream.exceptionHandler(null)
+                    stream.endHandler(null)
                     cont.resumeWithException(asyncResult.cause())
                 }
             }
         }
-        exceptionHandler { cont.resumeWithException(it) }
-        endHandler { cont.resume(Unit) }
     }
 }

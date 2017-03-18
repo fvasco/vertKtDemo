@@ -4,6 +4,7 @@ import io.vertx.core.eventbus.Message
 import io.vertx.core.eventbus.MessageConsumer
 
 class Verticle5 : AbstractVerticle() {
+
     override fun start() {
         val eventBus = vertx.eventBus()
         eventBus.launchConsumer<String, String>(WorkStep.STEP5.busName) { requestMessage ->
@@ -11,9 +12,15 @@ class Verticle5 : AbstractVerticle() {
             val result: String = handle { handler ->
                 doWork(WorkStep.STEP5, description, vertx, handler)
             }
+
+//            val result = handleResult<Message<String>> { handler ->
+//                eventBus.send(WorkStep.STEP6.busName, workMessage, handler)
+//            }
+
             return@launchConsumer result
         }
     }
+
 }
 
 /**
